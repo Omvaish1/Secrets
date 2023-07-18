@@ -4,7 +4,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption"); 
+// const encrypt = require("mongoose-encryption"); 
+const md5 = require("md5");
 
 const app = express();
 app.use(bodyParser.urlencoded({extended: true}));
@@ -22,7 +23,7 @@ const userSchema = new mongoose.Schema({
    password: String 
 });
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET , encryptedFields: ["password"]});
+// userSchema.plugin(encrypt, {secret: process.env.SECRET , encryptedFields: ["password"]});
 
 const User = mongoose.model("users" , userSchema);
 
@@ -41,7 +42,7 @@ app.get("/submit" , function(req,res){
 
 app.post("/register", function(req, res){
     const userName = req.body.username;
-    const password = req.body.password;
+    const password = md5(req.body.password);
     const user = new User({
         email: userName,
         password: password
@@ -56,7 +57,7 @@ app.post("/register", function(req, res){
 });
 app.post("/login" , function(req, res){
     const userName = req.body.username;
-    const password = req.body.password;
+    const password = md5(req.body.password);
     User.findOne({email: userName})
       .then(function(user){
         if(user.password === password){
@@ -67,15 +68,6 @@ app.post("/login" , function(req, res){
         console.log(err)
       });
 });
-// User.deleteMany()
-//   .then(function(){
-//     console.log("success")
-//   })
-//   .catch(function(err){
-//     console.log(err)
-//   });
-
-
 
   app.listen(3000, function(){
       console.log("Server started at port 3000");
