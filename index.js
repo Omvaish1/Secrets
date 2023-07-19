@@ -6,13 +6,27 @@ const ejs = require("ejs");
 const mongoose = require("mongoose");
 // const encrypt = require("mongoose-encryption"); 
 // const md5 = require("md5");
-const bcrypt = require("bcrypt");
-const saltRounds = 10;
+// const bcrypt = require("bcrypt");
+// const saltRounds = 10;
+const session = require("express-session");
+const passport = require("passport");
+const passportLocalMongoose = require("passport-local-mongoose");
 
 const app = express();
+
 app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
 app.use(express.static("public"));
+
+app.use(session({
+  secret: "Our little secret",
+  resave: false,
+  saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
 main().catch(err => console.log(err));
 
 async function main() {
@@ -25,9 +39,14 @@ const userSchema = new mongoose.Schema({
    password: String 
 });
 
-// userSchema.plugin(encrypt, {secret: process.env.SECRET , encryptedFields: ["password"]});
+userSchema.plugin(passportLocalMongoose);
 
 const User = mongoose.model("users" , userSchema);
+
+passport.use(User.createStrategy());
+
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 app.get("/" , function(req,res){
     res.render("home");
@@ -41,42 +60,69 @@ app.get("/register" , function(req,res){
 app.get("/submit" , function(req,res){
     res.render("submit");
 });
+app.get("/secrets" , function(req, res){
+  res.set(
+    'Cache-Control', 
+    'no-cache, private, no-store, must-revalidate, max-stal e=0, post-check=0, pre-check=0'
+  );
+  if(req.isAuthenticated()){
+    res.render("secrets")
+  }else{
+    res.redirect("/login")
+  }
+});
+app.get("/logout", (req, res, next) => {
+  req.logout(function(err) {
+    if (err) { return next(err); }
+    res.redirect('/');
+  });
+});
 
 app.post("/register", function(req, res){
-  bcrypt.hash(req.body.password, saltRounds, function(err, hash){
-    const userName = req.body.username;
-    const password = hash;
-    const user = new User({
-        email: userName,
-        password: password
-    });
-    user.save()
-      .then(function(){
-        res.render("secrets")
+  // bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+  //   const userName = req.body.username;
+  //   const password = hash;
+  //   const user = new User({
+  //       email: userName,
+  //       password: password
+  //   });
+  //   user.save()
+  //     .then(function(){
+  //       res.render("secrets")
+  //     })
+  //     .catch(function(err){
+  //       console.log(err)
+  //     });
+  // }) 
+  User.register({username: req.body.username}, req.body.password, function(err, user){
+    if(err){
+      console.log(err)
+      res.redirect("/register")
+    }else{
+      passport.authenticate("local")(req, res, function(){
+        res.redirect("/secrets")
       })
-      .catch(function(err){
-        console.log(err)
-      });
-  })  
-  
-    
-});
-app.post("/login" , function(req, res){
-    const userName = req.body.username;
-    const password = req.body.password;
-    User.findOne({email: userName})
-      .then(function(user){
-        bcrypt.compare(password, user.password, function(err, result){
-          if(result === true){
-            res.render("secrets")
-          } 
-        });
-      })   
-      .catch(function(err){
-        console.log(err)
-      });
+    }
+  })
 });
 
-  app.listen(3000, function(){
-      console.log("Server started at port 3000");
-  });
+app.post("/login" ,passport.authenticate("local", {failureRedirect: "/login"}), function(req, res){
+    // const userName = req.body.username;
+    // const password = req.body.password;
+    // User.findOne({email: userName})
+    //   .then(function(user){
+    //     bcrypt.compare(password, user.password, function(err, result){
+    //       if(result === true){
+    //         res.render("secrets")
+    //       } 
+    //     });
+    //   })   
+    //   .catch(function(err){
+    //     console.log(err)
+    //   });
+    res.redirect("/secrets")
+});
+
+app.listen(3000, function(){
+    console.log("Server started at port 3000");
+});
